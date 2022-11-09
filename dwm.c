@@ -171,6 +171,8 @@ static void focusin(XEvent *e);
 static void focusmon(const Arg *arg);
 static void focusstack(const Arg *arg);
 static Atom getatomprop(Client *c, Atom prop);
+static Client *getnext(Client *c);
+static Client *getprevious(Client *c);
 static int getrootptr(int *x, int *y);
 static long getstate(Window w);
 static int gettextprop(Window w, Atom atom, char *text, unsigned int size);
@@ -205,6 +207,9 @@ static void setlayout(const Arg *arg);
 static void setmfact(const Arg *arg);
 static void setup(void);
 static void seturgent(Client *c, int urg);
+static void shiftclient(const Arg *arg);
+static void shiftmaster();
+static void shifttriplet(Client *a, Client *b, Client *c);
 static void showhide(Client *c);
 static void sigchld(int unused);
 static void spawn(const Arg *arg);
@@ -887,6 +892,25 @@ getatomprop(Client *c, Atom prop)
 		XFree(p);
 	}
 	return atom;
+}
+
+Client
+*getnext(Client *c)
+{
+	if (!c->mon->clients->next) return NULL;
+	return c->next ? c->next : c->mon->clients;
+}
+
+Client
+*getprevious(Client *c)
+{
+	if (!c->mon->clients->next) return NULL;
+	Client *u;
+	if (c == c->mon->clients)
+		for (u=c->mon->clients; u->next; u=u->next);
+	else
+		for (u=c->mon->clients; u->next!=c; u=u->next);
+	return u;
 }
 
 int
@@ -1648,6 +1672,65 @@ seturgent(Client *c, int urg)
 	wmh->flags = urg ? (wmh->flags | XUrgencyHint) : (wmh->flags & ~XUrgencyHint);
 	XSetWMHints(dpy, c->win, wmh);
 	XFree(wmh);
+}
+
+void
+shiftclient(const Arg *arg)
+{
+	Client *u, *next, *prev, *pprev;
+
+	if (!selmon->clients || !selmon->clients->next) // 0 - 1 clients
+		return;
+	u = selmon->sel;
+	next = getnext(u);
+	prev = getprevious(u);
+	pprev = getprevious(prev);
+
+	if (prev == next) { // 2 clients,  sgn(arg) doesn't matter
+		if (u == selmon->clients) {
+			selmon->clients = next;
+			next->next = u;
+			u->next = NULL;
+		} else {
+			selmon->clients = u;
+			u->next = next;
+			next->next = NULL;
+		}
+	} else if (arg->i > 0)  // 3 clients,  prev->u->next becomes
+				//             prev->next->u
+		shifttriplet(prev, u, next);
+	 else // 3 clients,  pprev->prev->u becomes pprev->u->prev
+		 shifttriplet(pprev, prev, u);
+
+	 focus(u);
+	 arrange(selmon);
+}
+
+void
+shiftmaster()
+{
+	Client *u = selmon->sel;
+	detach(u);
+	attach(u);
+	focus(u);
+	arrange(selmon);
+}
+
+void
+shifttriplet(Client *a, Client *b, Client *c)
+{
+	Client *first = a->mon->clients;
+	if (b == first)
+		a->mon->clients = c;
+	else
+		a->next = c;
+	b->next = c->next;
+	if (c == first) {
+		c->next = NULL;
+		a->mon->clients = b;
+	} else {
+		c->next = b;
+	}
 }
 
 void

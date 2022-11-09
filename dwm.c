@@ -52,8 +52,8 @@
 #define ISVISIBLE(C)            ((C->tags & C->mon->tagset[C->mon->seltags]))
 #define LENGTH(X)               (sizeof X / sizeof X[0])
 #define MOUSEMASK               (BUTTONMASK|PointerMotionMask)
-#define WIDTH(X)                ((X)->w + 2 * (X)->bw)
-#define HEIGHT(X)               ((X)->h + 2 * (X)->bw)
+#define WIDTH(X)                ((X)->w + 2 * (X)->bw + margin)
+#define HEIGHT(X)               ((X)->h + 2 * (X)->bw + margin)
 #define TAGMASK                 ((1 << LENGTH(tags)) - 1)
 #define TEXTW(X)                (drw_fontset_getwidth(drw, (X)) + lrpad)
 
@@ -147,6 +147,7 @@ static int applysizehints(Client *c, int *x, int *y, int *w, int *h, int interac
 static void arrange(Monitor *m);
 static void arrangemon(Monitor *m);
 static void attach(Client *c);
+static void attachbottom(Client *c);
 static void attachstack(Client *c);
 static void buttonpress(XEvent *e);
 static void checkotherwm(void);
@@ -407,6 +408,16 @@ attach(Client *c)
 {
 	c->next = c->mon->clients;
 	c->mon->clients = c;
+}
+
+void
+attachbottom(Client *c)
+{
+
+	Client **u;
+	c->next = NULL;
+	for (u = &c->mon->clients; *u; u=&(*u)->next);
+	*u = c;
 }
 
 void
@@ -1065,7 +1076,7 @@ manage(Window w, XWindowAttributes *wa)
 		c->isfloating = c->oldstate = trans != None || c->isfixed;
 	if (c->isfloating)
 		XRaiseWindow(dpy, c->win);
-	attach(c);
+	attachbottom(c);
 	attachstack(c);
 	XChangeProperty(dpy, root, netatom[NetClientList], XA_WINDOW, 32, PropModeAppend,
 		(unsigned char *) &(c->win), 1);
@@ -1204,7 +1215,7 @@ void
 pop(Client *c)
 {
 	detach(c);
-	attach(c);
+	attachbottom(c);
 	focus(c);
 	arrange(c->mon);
 }
@@ -1277,11 +1288,40 @@ void
 resizeclient(Client *c, int x, int y, int w, int h)
 {
 	XWindowChanges wc;
+	unsigned int half, pos, win_n;
+	Client *u;
 
-	c->oldx = c->x; c->x = wc.x = x;
-	c->oldy = c->y; c->y = wc.y = y;
-	c->oldw = c->w; c->w = wc.width = w;
-	c->oldh = c->h; c->h = wc.height = h;
+	if (!c->isfloating) {
+		half = margin / 2;
+		u = c->mon->clients;
+		win_n = 0;
+		pos = 0;
+		for (; u; u=u->next, ++win_n) if (u == c) pos = win_n+1;
+
+		x += half;
+		y += half;
+		w -= 2*half;
+		h -= 2*half;
+
+		if (pos == 1 || pos == nmaster+1) { /* top client */
+			y += half;
+			h -= half;
+		}
+		if (pos <= nmaster || nmaster == 0) { /* left client */
+			x += half;
+			w -= half;
+		}
+		if (pos > nmaster || win_n <= nmaster) /* right client */
+			w -= half;
+		if (pos == nmaster || pos == win_n) /* bottom client */
+			h -= half;
+	}
+
+	c->oldx = c->x;  c->x = wc.x = x;
+	c->oldy = c->y;  c->y = wc.y = y;
+	c->oldw = c->w;  c->w = wc.width = w;
+	c->oldh = c->h;  c->h = wc.height = h;
+
 	wc.border_width = c->bw;
 	XConfigureWindow(dpy, c->win, CWX|CWY|CWWidth|CWHeight|CWBorderWidth, &wc);
 	configure(c);
@@ -1418,7 +1458,7 @@ sendmon(Client *c, Monitor *m)
 	detachstack(c);
 	c->mon = m;
 	c->tags = m->tagset[m->seltags]; /* assign tags of target monitor */
-	attach(c);
+	attachbottom(c);
 	attachstack(c);
 	focus(NULL);
 	arrange(NULL);
@@ -1899,7 +1939,7 @@ updategeom(void)
 				m->clients = c->next;
 				detachstack(c);
 				c->mon = mons;
-				attach(c);
+				attachbottom(c);
 				attachstack(c);
 			}
 			if (m == selmon)

@@ -28,8 +28,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <X11/XF86keysym.h>
 #include <X11/cursorfont.h>
 #include <X11/keysym.h>
 #include <X11/Xatom.h>
@@ -158,6 +160,7 @@ static void configure(Client *c);
 static void configurenotify(XEvent *e);
 static void configurerequest(XEvent *e);
 static Monitor *createmon(void);
+static void cyclelayouts(const Arg *arg);
 static void destroynotify(XEvent *e);
 static void detach(Client *c);
 static void detachstack(Client *c);
@@ -197,7 +200,10 @@ static void resizeclient(Client *c, int x, int y, int w, int h);
 static void resizemouse(const Arg *arg);
 static void restack(Monitor *m);
 static void run(void);
+static void runstartup(void);
 static void scan(void);
+static void sighup(int unused);
+static void sigterm(int unused);
 static int sendevent(Client *c, Atom proto);
 static void sendmon(Client *c, Monitor *m);
 static void setclientstate(Client *c, long state);
@@ -267,6 +273,7 @@ static void (*handler[LASTEvent]) (XEvent *) = {
 	[UnmapNotify] = unmapnotify
 };
 static Atom wmatom[WMLast], netatom[NetLast];
+static int restart = 0;
 static int running = 1;
 static Cur *cursor[CurLast];
 static Clr **scheme;
@@ -662,6 +669,22 @@ createmon(void)
 	m->lt[1] = &layouts[1 % LENGTH(layouts)];
 	strncpy(m->ltsymbol, layouts[0].symbol, sizeof m->ltsymbol);
 	return m;
+}
+
+void
+cyclelayouts(const Arg *arg) {
+	Layout *l, *null;
+	Arg a;
+	for (l=(Layout *)layouts; l!=selmon->lt[selmon->sellt]; l++);
+	for (null=l; null->symbol; null++);
+	if (!arg || !arg->i || arg->i > 0) {
+		if ((l+1)->symbol) a.v = (l+1);
+		else a.v = layouts;
+	} else {
+		if (l != layouts) a.v = (l-1);
+		else a.v = null - 1;
+	}
+	setlayout(&a);
 }
 
 void
@@ -1284,6 +1307,7 @@ propertynotify(XEvent *e)
 void
 quit(const Arg *arg)
 {
+	if (arg->i) restart = 1;
 	running = 0;
 }
 
@@ -1446,6 +1470,23 @@ run(void)
 }
 
 void
+runstartup(void)
+{
+	char *home, *path;
+
+	if ((home = getenv("HOME")) == NULL)
+		return;
+	path = ecalloc(1, strlen(home) + strlen(autostart) + 2);
+	if (sprintf(path, "%s/%s", home, autostart) <= 0) {
+		free(path);
+		return;
+	}
+	if (access(path, X_OK) == 0)
+		system(path);
+	free(path);
+}
+
+void
 scan(void)
 {
 	unsigned int i, num;
@@ -1495,6 +1536,20 @@ setclientstate(Client *c, long state)
 
 	XChangeProperty(dpy, c->win, wmatom[WMState], wmatom[WMState], 32,
 		PropModeReplace, (unsigned char *)data, 2);
+}
+
+void
+sighup(int unused)
+{
+	Arg a = {.i = 1};
+	quit(&a);
+}
+
+void
+sigterm(int unused)
+{
+	Arg a = {.i = 0};
+	quit(&a);
 }
 
 int
@@ -2265,7 +2320,9 @@ main(int argc, char *argv[])
 		die("pledge");
 #endif /* __OpenBSD__ */
 	scan();
+	runstartup();
 	run();
+	if (restart) execvp(argv[0], argv);
 	cleanup();
 	XCloseDisplay(dpy);
 	return EXIT_SUCCESS;

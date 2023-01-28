@@ -68,6 +68,7 @@ enum { NetSupported, NetWMName, NetWMState, NetWMCheck,
 enum { WMProtocols, WMDelete, WMState, WMTakeFocus, WMLast }; /* default atoms */
 enum { ClkTagBar, ClkLtSymbol, ClkStatusText, ClkWinTitle,
        ClkClientWin, ClkRootWin, ClkLast }; /* clicks */
+enum { TranspInc, TranspDec, TranspSet }; /* transparency */
 
 typedef union {
 	int i;
@@ -141,10 +142,11 @@ typedef struct {
 	unsigned int tags;
 	int isfloating;
 	int monitor;
+	float transparency;
 } Rule;
 
 /* function declarations */
-static void applyrules(Client *c);
+static void applyrules(Client *c, float *p);
 static int applysizehints(Client *c, int *x, int *y, int *w, int *h, int interact);
 static void arrange(Monitor *m);
 static void arrangemon(Monitor *m);
@@ -208,9 +210,11 @@ static int sendevent(Client *c, Atom proto);
 static void sendmon(Client *c, Monitor *m);
 static void setclientstate(Client *c, long state);
 static void setfocus(Client *c);
+static void setdefaulttransparency(float p);
 static void setfullscreen(Client *c, int fullscreen);
 static void setlayout(const Arg *arg);
 static void setmfact(const Arg *arg);
+static void settransparency(const Arg *arg);
 static void setup(void);
 static void seturgent(Client *c, int urg);
 static void shiftclient(const Arg *arg);
@@ -290,7 +294,7 @@ struct NumTags { char limitexceeded[LENGTH(tags) > 31 ? -1 : 1]; };
 
 /* function implementations */
 void
-applyrules(Client *c)
+applyrules(Client *c, float *p)
 {
 	const char *class, *instance;
 	unsigned int i;
@@ -309,11 +313,12 @@ applyrules(Client *c)
 		r = &rules[i];
 		if ((!r->title || strstr(c->name, r->title))
 		&& (!r->class || strstr(class, r->class))
-		&& (!r->instance || strstr(instance, r->instance)))
-		{
+		&& (!r->instance || strstr(instance, r->instance))
+		){
 			c->isfloating = r->isfloating;
 			c->tags |= r->tags;
 			for (m = mons; m && m->num != r->monitor; m = m->next);
+			*p = r->transparency;
 			if (m)
 				c->mon = m;
 		}
@@ -1083,6 +1088,7 @@ manage(Window w, XWindowAttributes *wa)
 	Client *c, *t = NULL;
 	Window trans = None;
 	XWindowChanges wc;
+	float transp = 1.0;
 
 	c = ecalloc(1, sizeof(Client));
 	c->win = w;
@@ -1099,7 +1105,7 @@ manage(Window w, XWindowAttributes *wa)
 		c->tags = t->tags;
 	} else {
 		c->mon = selmon;
-		applyrules(c);
+		applyrules(c, &transp);
 	}
 
 	if (c->x + WIDTH(c) > c->mon->wx + c->mon->ww)
@@ -1135,6 +1141,8 @@ manage(Window w, XWindowAttributes *wa)
 	arrange(c->mon);
 	XMapWindow(dpy, c->win);
 	focus(NULL);
+
+	setdefaulttransparency(transp);
 }
 
 void
@@ -1590,6 +1598,41 @@ setfocus(Client *c)
 }
 
 void
+setdefaulttransparency(float p)
+{
+	const char *title, *class, *instance, *prefix;
+	char *cmd;
+	const Rule *r;
+	XClassHint ch = { NULL, NULL };
+	
+	XGetClassHint(dpy, selmon->sel->win, &ch);
+	title    = selmon->sel->name;
+	class    = ch.res_class ? ch.res_class : broken;
+	instance = ch.res_name ? ch.res_name : broken;
+	prefix   = transparencycmd[TranspSet];
+	
+	if (p < 0.0) {
+		for (int i=0; i<LENGTH(rules); ++i) {
+			r = &rules[i];
+			if ((!r->title || strstr(title, r->title))
+			&& (!r->class || strstr(class, r->class))
+			&& (!r->instance || strstr(instance, r->instance))
+			) {
+				p = r->transparency;
+				break;
+			}
+		}
+	}
+	
+	if (p < 0.0 || 1.0 < p)
+		p = 1.0;
+	cmd = ecalloc(1, strlen(prefix) + 4 + 2);
+	if (sprintf(cmd, "%s %.2f", prefix, p) > 0)
+		system(cmd);
+	free(cmd);
+}
+
+void
 setfullscreen(Client *c, int fullscreen)
 {
 	if (fullscreen && !c->isfullscreen) {
@@ -1644,6 +1687,30 @@ setmfact(const Arg *arg)
 		return;
 	selmon->mfact = f;
 	arrange(selmon);
+}
+
+void
+settransparency(const Arg *arg)
+{
+	char *cmd;
+	const char *prefix;
+	float p;
+
+	if (!arg || !arg->f || arg->f == 0.0) {
+		setdefaulttransparency(-1.0);
+		return;
+	} else if (arg->f > 0.0) {
+		prefix = transparencycmd[TranspInc];
+		p = arg->f;
+	} else {
+		prefix = transparencycmd[TranspDec];
+		p = - arg->f;
+	}
+	cmd = ecalloc(1, strlen(prefix) + 4 + 2);
+	if (sprintf(cmd, "%s %.2f", prefix, p) > 0)
+		system(cmd);
+	free(cmd);
+
 }
 
 void

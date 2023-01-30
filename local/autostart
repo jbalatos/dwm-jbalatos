@@ -1,0 +1,18 @@
+#! /bin/bash
+
+xinput set-prop "MSFT0001:00 06CB:7E7E Touchpad" "libinput Click Method Enabled" 0 1
+xinput set-prop "MSFT0001:00 06CB:7E7E Touchpad" "libinput Tapping Enabled" 1
+xinput set-prop "MSFT0001:00 06CB:7E7E Touchpad" "libinput Natural Scrolling Enabled" 1
+
+setxkbmap -model pc104 -layout us,gr -option 'grp:win_space_toggle'
+
+killall picom
+picom --config $HOME/.local/dwm/picom.conf &
+killall nitrogen
+nitrogen --restore
+
+killall "bash $HOME/.local/dwm/statusbar &"
+bash $HOME/.local/dwm/statusbar &
+
+xset s off -dpms
+

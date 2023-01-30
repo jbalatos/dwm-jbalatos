@@ -1,0 +1,15 @@
+#! /bin/bash
+
+SHORTCUTS="$(
+cat $HOME/dwm/config.h | \
+	sed -n -e "/static const Key keys/,/TAGKEYS/ p" | \
+	grep "^\( \|	\)*{" | \
+	awk -F "," '{printf "%s + %s %s\n",  $1, $2, $NF};' | \
+	sed -e "s/^\(\w\|\t\)*{//" \
+	-e "s/+ */+ /g" -e "s/ *+/ +/g" -e "s/ *\/\// \/\//" \
+	-e "s/XK_//" -e "s/MODKEY/M/" -e "s/|/ \+ /" -e "s/Mask//g" |
+	awk -F "//" '{if (NF == 2) print $2}; {printf "	%s\n", $1};'
+)"
+echo -e "\n DWM KEYBINDS\n\n (M : Super key)\n (press Esc to exit) \n\n$SHORTCUTS" | \
+	yad --text-info --back="#282828" --fore="#ebdbb2" --geometry=800x800 \
+	--no-buttons --borders=0 --fontname="Source Code Pro 14" --center &

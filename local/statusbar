@@ -1,0 +1,24 @@
+#! /bin/bash
+
+while true; do
+	VOLUME=""
+	if [ "$(pactl get-sink-mute @DEFAULT_SINK@ | awk '{print $2};')" == "yes" ]; then
+		VOLUME=" MUTE "
+	else
+		VOLUME=$(pactl get-sink-volume @DEFAULT_SINK@ | awk -F "/" '{print $2};')
+	fi
+
+	BAT_ICON=$(cat /sys/class/power_supply/BAT0/status)
+	if [ "$BAT_ICON" == "Charging" ]; then
+		BAT_ICON="^"
+	elif [ "$BAT_ICON" == "Full" ]; then
+		BAT_ICON="-"
+	else
+		BAT_ICON="v"
+	fi
+	BAT=$(cat /sys/class/power_supply/BAT0/capacity)
+
+	TIME=$(date +'%x %R')
+	xsetroot -name " $BAT_ICON $BAT% |$VOLUME| $TIME "
+	sleep 10s
+done

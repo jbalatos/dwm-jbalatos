@@ -202,7 +202,7 @@ static void resizeclient(Client *c, int x, int y, int w, int h);
 static void resizemouse(const Arg *arg);
 static void restack(Monitor *m);
 static void run(void);
-static void runstartup(void);
+static void runlocal(const Arg *arg);
 static void scan(void);
 static void sighup(int unused);
 static void sigterm(int unused);
@@ -1478,14 +1478,16 @@ run(void)
 }
 
 void
-runstartup(void)
+runlocal(const Arg *arg)
 {
 	char *home, *path;
+	const char *tgt;
 
+	tgt = (arg && arg->v) ? arg->v : autostart;
 	if ((home = getenv("HOME")) == NULL)
 		return;
-	path = ecalloc(1, strlen(home) + strlen(autostart) + 2);
-	if (sprintf(path, "%s/%s", home, autostart) <= 0) {
+	path = ecalloc(1, strlen(home) + strlen(tgt) + 2);
+	if (sprintf(path, "%s/%s", home, tgt) <= 0) {
 		free(path);
 		return;
 	}
@@ -2387,7 +2389,7 @@ main(int argc, char *argv[])
 		die("pledge");
 #endif /* __OpenBSD__ */
 	scan();
-	runstartup();
+	runlocal(NULL);
 	run();
 	if (restart) execvp(argv[0], argv);
 	cleanup();

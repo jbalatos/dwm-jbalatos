@@ -38,6 +38,7 @@ static const Rule rules[] = {
 	/* class           instance    title       tags mask     isfloating   monitor, transparency */
 	{ "Gimp",          NULL,       NULL,       0,            1,           -1,      1  },
 	{ "Firefox",       NULL,       NULL,       1 << 8,       0,           -1,      1  },
+	{ "Yad",           NULL,       NULL,       0,            1,           -1,      0.95 },
 	{ "Qalculate-gtk", NULL,       NULL,       0,            1,           -1,      0.95 },
 	{ "Alacritty",     NULL,       NULL,       0,            0,           -1,      0.98 },
 };
@@ -69,6 +70,7 @@ static const Layout layouts[] = {
 
 /* commands */
 static const char autostart[] = ".local/dwm/autostart"; /* executable bash file to run at autostart (blocking) */
+static const char help[] =  ".local/dwm/shortcuts"; /* executable bash file to run at autostart (blocking) */
 static char dmenumon[2] = "0"; /* component of dmenucmd, manipulated in spawn() */
 static const char *dmenucmd[] = { "dmenu_run", "-m", dmenumon, "-fn", dmenufont, "-nb", col_black, "-nf", col_white, "-sb", col_red, "-sf", col_white, NULL };
 static const char *termcmd[]  = { "alacritty", NULL };
@@ -78,34 +80,44 @@ static const char *voldowncmd[] = { "pactl", "set-sink-volume", "@DEFAULT_SINK@"
 
 static const Key keys[] = {
 	/* modifier                     key                     function        argument */
-	{ MODKEY,                       XK_r,                    spawn,           {.v = dmenucmd } },
-	{ MODKEY,                       XK_Return,               spawn,           {.v = termcmd } },
-	{ MODKEY|ShiftMask,             XK_b,                    spawn,           SHCMD("firefox") },
-	{ MODKEY,                       XK_b,                    togglebar,       {0} },
-	{ MODKEY,                       XK_j,                    focusstack,      {.i = +1 } },
-	{ MODKEY,                       XK_k,                    focusstack,      {.i = -1 } },
-	{ MODKEY|ShiftMask,             XK_j,                    shiftclient,     {.i = +1 } },
-	{ MODKEY|ShiftMask,             XK_k,                    shiftclient,     {.i = -1 } },
-	{ MODKEY|ShiftMask,             XK_Return,               shiftmaster,     {0} },
-	{ MODKEY,                       XK_n,                    incnmaster,      {.i = +1 } },
-	{ MODKEY,                       XK_m,                    incnmaster,      {.i = -1 } },
-	{ MODKEY,                       XK_h,                    setmfact,        {.f = -0.05} },
+	{ MODKEY,                       XK_r,                    spawn,           {.v = dmenucmd} },    // Run dmenu
+	{ MODKEY,                       XK_Return,               spawn,           {.v = termcmd} },     // Open terminal
+	{ MODKEY|ShiftMask,             XK_b,                    spawn,           SHCMD("firefox") },   // Spawn browser
+	{ MODKEY,                       XK_b,                    togglebar,       {0} },                // Toggle status bar
+	{ MODKEY,                       XK_j,                    focusstack,      {.i = +1} },          // Focus on next-previous client
+	{ MODKEY,                       XK_k,                    focusstack,      {.i = -1} },
+	{ MODKEY|ShiftMask,             XK_j,                    shiftclient,     {.i = +1} },          // Move client up-down on stack
+	{ MODKEY|ShiftMask,             XK_k,                    shiftclient,     {.i = -1} },
+	{ MODKEY|ShiftMask,             XK_Return,               shiftmaster,     {0} },                // Move client to master
+	{ MODKEY,                       XK_n,                    incnmaster,      {.i = +1} },          // Increase-decrease master clients
+	{ MODKEY,                       XK_m,                    incnmaster,      {.i = -1} },
+	{ MODKEY,                       XK_h,                    setmfact,        {.f = -0.05} },       // Increase-Decrease master percentage
 	{ MODKEY,                       XK_l,                    setmfact,        {.f = +0.05} },
-	{ MODKEY,                       XK_Return,               zoom,            {0} },
-	{ MODKEY,                       XK_Tab,                  view,            {0} },
-	{ MODKEY|ShiftMask,             XK_c,                    killclient,      {0} },
-	{ ControlMask,                  XK_space,                cyclelayouts,    { .i = +1 } },
-	{ ControlMask|ShiftMask,        XK_space,                setlayout,       { .v = &layouts[0]} },
-	{ MODKEY,                       XK_f,                    togglefloating,  {0} },
-	{ MODKEY,                       XK_0,                    view,            {.ui = ~0 } },
-	{ MODKEY|ShiftMask,             XK_0,                    tag,             {.ui = ~0 } },
-	{ MODKEY,                       XK_comma,                focusmon,        {.i = -1 } },
-	{ MODKEY,                       XK_period,               focusmon,        {.i = +1 } },
-	{ MODKEY|ShiftMask,             XK_comma,                tagmon,          {.i = -1 } },
-	{ MODKEY|ShiftMask,             XK_period,               tagmon,          {.i = +1 } },
-	{ MODKEY|ShiftMask,             XK_equal,                settransparency, {.f = +0.05 } },
-	{ MODKEY,                       XK_minus,                settransparency, {.f = -0.05 } },
-	{ MODKEY,                       XK_equal,                settransparency, {0} },
+	{ MODKEY,                       XK_Tab,                  view,            {0} },                // Change to last tag
+	{ MODKEY|ShiftMask,             XK_c,                    killclient,      {0} },                // Kill current client
+	{ ControlMask,                  XK_space,                cyclelayouts,    { .i = +1} },         // Change to next layout
+	{ ControlMask|ShiftMask,        XK_space,                setlayout,       { .v = &layouts[0]} },// Change to default layout
+	{ MODKEY,                       XK_f,                    togglefloating,  {0} },                // Toggle floating on current client
+	{ MODKEY,                       XK_0,                    view,            {.ui = ~0} },         // View all tags
+	{ MODKEY|ShiftMask,             XK_0,                    tag,             {.ui = ~0} },         // Move client to all tags
+	{ MODKEY,                       XK_comma,                focusmon,        {.i = -1} },          // Focus on next-previous monitor
+	{ MODKEY,                       XK_period,               focusmon,        {.i = +1} },
+	{ MODKEY|ShiftMask,             XK_comma,                tagmon,          {.i = -1} },          // Move client to next-previous monitor
+	{ MODKEY|ShiftMask,             XK_period,               tagmon,          {.i = +1} },
+	{ MODKEY|ShiftMask,             XK_equal,                settransparency, {.f = +0.05} },       // Increase-decrease client's transparency
+	{ MODKEY,                       XK_minus,                settransparency, {.f = -0.05} },
+	{ MODKEY,                       XK_equal,                settransparency, {0} },                 // Set client's transparency to default
+	{ MODKEY|ShiftMask,             XK_slash,                runlocal,        {.v = help} },         // Open help page
+	{ MODKEY|ShiftMask,             XK_q,                    quit,            {0} },                 // Close dwm
+	{ MODKEY|ShiftMask,             XK_r,                    quit,            {1} },                 // Restart dwm
+	/*
+	{ MODKEY,                       KEY,                                          },                 // Change to tag
+	{ MODKEY|ControlMask,           KEY,                                          },                 // Toggle tag
+	{ MODKEY|ShiftMask,             KEY,                                          },                 // Move client to tag
+	{ MODKEY|ControlMask|ShiftMask, KEY,                                          },                 // Display client (also) to tag
+	{ y + u + i + o + p + [ ,       ],                                            },                 // Key can be one of :
+	*/
+	TAGKEYS(                        XK_y,                                     0)
 	TAGKEYS(                        XK_y,                                     0)
 	TAGKEYS(                        XK_u,                                     1)
 	TAGKEYS(                        XK_i,                                     2)
@@ -116,8 +128,6 @@ static const Key keys[] = {
 	{ 0,                            XF86XK_AudioMute,        spawn,           {.v = mutecmd} },
 	{ 0,                            XF86XK_AudioLowerVolume, spawn,           {.v = voldowncmd} },
 	{ 0,                            XF86XK_AudioRaiseVolume, spawn,           {.v = volupcmd} },
-	{ MODKEY|ShiftMask,             XK_q,                    quit,            {0} },
-	{ MODKEY|ShiftMask,             XK_r,                    quit,            {1} },
 };
 
 /* button definitions */

@@ -10,6 +10,6 @@ cat $HOME/dwm/config.h | \
 	-e "s/XK_//" -e "s/MODKEY/M/" -e "s/|/ \+ /" -e "s/Mask//g" |
 	awk -F "//" '{if (NF == 2) print $2}; {printf "	%s\n", $1};'
 )"
-echo -e "\n DWM KEYBINDS\n\n (M : Super key)\n (press Esc to exit) \n\n$SHORTCUTS" | \
+echo -e "\n ---DWM KEYBINDS---\n\n (M : Super key)\n (press Esc to exit) \n\n$SHORTCUTS" | \
 	yad --text-info --back="#282828" --fore="#ebdbb2" --geometry=800x800 \
 	--no-buttons --borders=0 --fontname="Source Code Pro 14" --center &

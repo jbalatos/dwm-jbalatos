@@ -18,7 +18,9 @@ while true; do
 	fi
 	BAT=$(cat /sys/class/power_supply/BAT0/capacity)
 
+	LANG=$(xkblayout-state print "%s")
+
 	TIME=$(date +'%x %R')
-	xsetroot -name " $BAT_ICON $BAT% |$VOLUME| $TIME "
+	xsetroot -name " $BAT_ICON $BAT% |$VOLUME| $LANG | $TIME "
 	sleep 10s
 done

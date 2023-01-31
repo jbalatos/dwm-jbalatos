@@ -181,6 +181,7 @@ static Client *getprevious(Client *c);
 static int getrootptr(int *x, int *y);
 static long getstate(Window w);
 static int gettextprop(Window w, Atom atom, char *text, unsigned int size);
+static char *gettagtitle(unsigned int i, unsigned int occ);
 static void grabbuttons(Client *c, int focused);
 static void grabkeys(void);
 static void incnmaster(const Arg *arg);
@@ -447,7 +448,8 @@ attachstack(Client *c)
 void
 buttonpress(XEvent *e)
 {
-	unsigned int i, x, click;
+	unsigned int i, occ = 0, x, click;
+	char *title;
 	Arg arg = {0};
 	Client *c;
 	Monitor *m;
@@ -462,9 +464,12 @@ buttonpress(XEvent *e)
 	}
 	if (ev->window == selmon->barwin) {
 		i = x = 0;
-		do
-			x += TEXTW(tags[i]);
-		while (ev->x >= x && ++i < LENGTH(tags));
+		for (c = m->clients; c; c = c->next)
+			occ |= c->tags;
+		do {
+			x += TEXTW(title = gettagtitle(i, occ));
+			free(title);
+		} while (ev->x >= x && ++i < LENGTH(tags));
 		if (i < LENGTH(tags)) {
 			click = ClkTagBar;
 			arg.ui = 1 << i;
@@ -747,6 +752,7 @@ drawbar(Monitor *m)
 	int boxs = drw->fonts->h / 9;
 	int boxw = drw->fonts->h / 6 + 2;
 	unsigned int i, occ = 0, urg = 0;
+	char *title;
 	Client *c;
 
 	if (!m->showbar)
@@ -766,14 +772,16 @@ drawbar(Monitor *m)
 	}
 	x = 0;
 	for (i = 0; i < LENGTH(tags); i++) {
-		w = TEXTW(tags[i]);
+		title = gettagtitle(i, occ);
+		w = TEXTW(title);
 		drw_setscheme(drw, scheme[m->tagset[m->seltags] & 1 << i ? SchemeSel : SchemeNorm]);
-		drw_text(drw, x, 0, w, bh, lrpad / 2, tags[i], urg & 1 << i);
-		if (occ & 1 << i)
-			drw_rect(drw, x + boxs, boxs, boxw, boxw,
-				m == selmon && selmon->sel && selmon->sel->tags & 1 << i,
-				urg & 1 << i);
+		drw_text(drw, x, 0, w, bh, lrpad / 2, title, urg & 1 << i);
+		// if (occ & 1 << i)
+			// drw_rect(drw, x + boxs, boxs, boxw, boxw,
+				// m == selmon && selmon->sel && selmon->sel->tags & 1 << i,
+				// urg & 1 << i);
 		x += w;
+		free(title);
 	}
 	w = TEXTW(m->ltsymbol);
 	drw_setscheme(drw, scheme[SchemeNorm]);
@@ -990,6 +998,17 @@ gettextprop(Window w, Atom atom, char *text, unsigned int size)
 	text[size - 1] = '\0';
 	XFree(name.value);
 	return 1;
+}
+
+char *
+gettagtitle(unsigned int i, unsigned int occ)
+{
+	char *title = ecalloc(1, strlen(tags[i]) + 3);
+	if (occ & 1 << i)
+		sprintf(title, "[%s]", tags[i]);
+	else
+		sprintf(title, "%s", tags[i]);
+	return title;
 }
 
 void

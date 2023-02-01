@@ -1,15 +1,31 @@
 #! /bin/bash
 
-SHORTCUTS="$(
-cat $HOME/dwm/config.h | \
-	sed -n -e "/static const Key keys/,/TAGKEYS/ p" | \
-	grep "^\( \|	\)*{" | \
-	awk -F "," '{printf "%s + %s %s\n",  $1, $2, $NF};' | \
-	sed -e "s/^\(\w\|\t\)*{//" \
+NORM_SHORTCUTS="$(
+cat $HOME/dwm/config.h |
+	sed -n -e "/static const Key keys/,/TAGKEYS/ p" |
+	grep "^\( \|	\)*{" |
+	awk -F "," '{printf "%s + %s %s\n",  $1, $2, $NF};' |
+	sed -e "s/^\(\w\|\t\)*{ //" \
 	-e "s/+ */+ /g" -e "s/ *+/ +/g" -e "s/ *\/\// \/\//" \
 	-e "s/XK_//" -e "s/MODKEY/M/" -e "s/|/ \+ /" -e "s/Mask//g" |
-	awk -F "//" '{if (NF == 2) print $2}; {printf "	%s\n", $1};'
+	awk -F "//" '{printf "  %-40s", (NF == 2) ? $2 : ""}; {printf "%s\n", $1};'
 )"
-echo -e "\n ---DWM KEYBINDS---\n\n (M : Super key)\n (press Esc to exit) \n\n$SHORTCUTS" | \
+
+MODE_SHORTCUTS="$(
+cat $HOME/dwm/config.h |
+	sed -n -e "/\/\* modes/,/modes\[\]/ p" | grep -v "};" |
+	sed -e "1 d" -e "$ d" -e "x;$ d" \
+	-e "s/const Key //" -e "s/{//" -e "s/\(\ \|\t\)\+/ /g"  -e "s/^\ //" \
+	-e "s/^\(.*\)\[\] =\ *\/\/\ \(.*\)$/\2 ,\/\/ \1 mode\/\//" \
+	-e "s/XK_//" -e "s/MODKEY/M/" -e "s/|/ \+ /" -e "s/Mask//g" |
+	awk -F "," '{printf "%s +%s%s\n", $1, $2, $NF};' |
+	sed -e "1 d" -e "s/\/\/\ /\/\//" |
+	awk -F "//" '{if (NF == 3) {printf "\n%-39s", $2; printf "   %s\n", $1;} else \
+		{printf "   %-39s", (NF == 2 ? $2 : ""); printf "%s\n", $1}};'
+)"
+
+echo -e "\n ---DWM KEYBINDS---\n\n \
+(M : Super key)\n (press Esc to exit) \n\n\
+Normal mode:\n$NORM_SHORTCUTS\n$MODE_SHORTCUTS" |
 	yad --text-info --back="#282828" --fore="#ebdbb2" --geometry=800x800 \
 	--no-buttons --borders=0 --fontname="Source Code Pro 14" --center &

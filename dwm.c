@@ -114,6 +114,15 @@ typedef struct {
 	void (*arrange)(Monitor *);
 } Layout;
 
+typedef struct {
+	const char *symbol;
+	unsigned int mod;
+	KeySym keysym;
+	const unsigned int unique;
+	const Key * const keys;
+	const size_t size;
+} Mode;
+
 struct Monitor {
 	char ltsymbol[16];
 	float mfact;
@@ -205,8 +214,10 @@ static void restack(Monitor *m);
 static void run(void);
 static void runlocal(const Arg *arg);
 static void scan(void);
+/*
 static void sighup(int unused);
 static void sigterm(int unused);
+*/
 static int sendevent(Client *c, Atom proto);
 static void sendmon(Client *c, Monitor *m);
 static void setclientstate(Client *c, long state);
@@ -255,6 +266,7 @@ static void zoom(const Arg *arg);
 /* variables */
 static const char broken[] = "broken";
 static char stext[256];
+static const Mode *cur_mode = NULL;
 static int screen;
 static int sw, sh;           /* X display screen geometry width, height */
 static int bh;               /* bar height */
@@ -748,11 +760,11 @@ dirtomon(int dir)
 void
 drawbar(Monitor *m)
 {
-	int x, w, tw = 0;
+	int x, w, mw = 0, tw = 0;
 	int boxs = drw->fonts->h / 9;
 	int boxw = drw->fonts->h / 6 + 2;
 	unsigned int i, occ = 0, urg = 0;
-	char *title;
+	char *mode, *title;
 	Client *c;
 
 	if (!m->showbar)
@@ -763,6 +775,17 @@ drawbar(Monitor *m)
 		drw_setscheme(drw, scheme[SchemeNorm]);
 		tw = TEXTW(stext) - lrpad + 2; /* 2px right padding */
 		drw_text(drw, m->ww - tw, 0, tw, bh, 0, stext, 0);
+
+		/* draw keybinding mode */
+		if (cur_mode != NULL) {
+			mode = ecalloc(1, strlen(cur_mode->symbol) + 4);
+			if ((sprintf(mode, "[%s]", cur_mode->symbol)) > 0) {
+				mw = TEXTW(mode) - 2;
+				drw_setscheme(drw, scheme[SchemeSel]);
+				drw_text(drw, m->ww - tw - mw, 0, mw, bh, 0, mode, 0);
+			}
+			free(mode);
+		}
 	}
 
 	for (c = m->clients; c; c = c->next) {
@@ -787,7 +810,7 @@ drawbar(Monitor *m)
 	drw_setscheme(drw, scheme[SchemeNorm]);
 	x = drw_text(drw, x, 0, w, bh, lrpad / 2, m->ltsymbol, 0);
 
-	if ((w = m->ww - tw - x) > bh) {
+	if ((w = m->ww - tw - mw - x) > bh) {
 		if (m->sel) {
 			drw_setscheme(drw, scheme[m == selmon ? SchemeSel : SchemeNorm]);
 			drw_text(drw, x, 0, w, bh, lrpad / 2, m->sel->name, 0);
@@ -1037,8 +1060,9 @@ grabkeys(void)
 {
 	updatenumlockmask();
 	{
-		unsigned int i, j;
+		unsigned int i, j, k;
 		unsigned int modifiers[] = { 0, LockMask, numlockmask, numlockmask|LockMask };
+		const Key *key;
 		KeyCode code;
 
 		XUngrabKey(dpy, AnyKey, AnyModifier, root);
@@ -1047,6 +1071,17 @@ grabkeys(void)
 				for (j = 0; j < LENGTH(modifiers); j++)
 					XGrabKey(dpy, code, keys[i].mod | modifiers[j], root,
 						True, GrabModeAsync, GrabModeAsync);
+		for (i = 0; i < LENGTH(modes); i++) {
+			if ((code = XKeysymToKeycode(dpy, modes[i].keysym)))
+				for (j = 0; j<LENGTH(modifiers); j++)
+					XGrabKey(dpy, code, modes[i].mod | modifiers[j],
+						root, True, GrabModeAsync, GrabModeAsync);
+			for (j = 0, key=modes[i].keys; j<modes[i].size; j++, key++)
+				if ((code = XKeysymToKeycode(dpy, key->keysym)))
+					for (k = 0; k<LENGTH(modifiers); k++)
+						XGrabKey(dpy, code, key->mod | modifiers[k],
+							root, True, GrabModeAsync, GrabModeAsync);
+		}
 	}
 }
 
@@ -1074,15 +1109,40 @@ keypress(XEvent *e)
 {
 	unsigned int i;
 	KeySym keysym;
+	const Key *k;
+	size_t size;
 	XKeyEvent *ev;
 
 	ev = &e->xkey;
 	keysym = XKeycodeToKeysym(dpy, (KeyCode)ev->keycode, 0);
-	for (i = 0; i < LENGTH(keys); i++)
-		if (keysym == keys[i].keysym
-		&& CLEANMASK(keys[i].mod) == CLEANMASK(ev->state)
-		&& keys[i].func)
-			keys[i].func(&(keys[i].arg));
+	if (cur_mode == NULL) {
+		for (i = 0; i < LENGTH(modes); i++)
+			if (keysym == modes[i].keysym
+			&& CLEANMASK(modes[i].mod) == CLEANMASK(ev->state)) {
+				cur_mode = &modes[i];
+				drawbar(selmon);
+				return;
+			}
+	} else if (keysym == cur_mode->keysym
+		&& CLEANMASK(cur_mode->mod) == CLEANMASK(ev->state)) {
+		cur_mode = NULL;
+		drawbar(selmon);
+		return;
+	}
+
+	k =    (cur_mode == NULL) ? keys         : cur_mode->keys;
+	size = (cur_mode == NULL) ? LENGTH(keys) : cur_mode->size;
+	for (i = 0; i < size; i++)
+		if (keysym == k[i].keysym
+		&& CLEANMASK(k[i].mod) == CLEANMASK(ev->state)
+		&& k[i].func) {
+			k[i].func(&(k[i].arg));
+			if (cur_mode && cur_mode->unique) {
+				cur_mode = NULL;
+				drawbar(selmon);
+				return;
+			}
+		}
 }
 
 void
@@ -1567,6 +1627,7 @@ setclientstate(Client *c, long state)
 		PropModeReplace, (unsigned char *)data, 2);
 }
 
+/*
 void
 sighup(int unused)
 {
@@ -1580,6 +1641,7 @@ sigterm(int unused)
 	Arg a = {.i = 0};
 	quit(&a);
 }
+*/
 
 int
 sendevent(Client *c, Atom proto)

@@ -28,4 +28,4 @@ echo -e "\n ---DWM KEYBINDS---\n\n \
 (M : Super key)\n (press Esc to exit) \n\n\
 Normal mode:\n$NORM_SHORTCUTS\n$MODE_SHORTCUTS" |
 	yad --text-info --back="#282828" --fore="#ebdbb2" --geometry=800x800 \
-	--no-buttons --borders=0 --fontname="Source Code Pro 14" --center &
+	--no-buttons --borders=0 --fontname="Source Code Pro 14" --center

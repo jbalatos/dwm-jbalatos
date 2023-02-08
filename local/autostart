@@ -16,3 +16,5 @@ bash $HOME/.local/dwm/statusbar &
 
 xset s off -dpms
 
+export _JAVA_AWT_WM_NONREPARENTING=1
+

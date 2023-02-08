@@ -235,11 +235,14 @@ static void shifttriplet(Client *a, Client *b, Client *c);
 static void showhide(Client *c);
 static void sigchld(int unused);
 static void spawn(const Arg *arg);
+static void spawndmenu(const Arg *arg);
+static void spawnlocal(const Arg *arg);
 static void tag(const Arg *arg);
 static void tagmon(const Arg *arg);
 static void tile(Monitor *m);
 static void togglebar(const Arg *arg);
 static void togglefloating(const Arg *arg);
+static void togglefullscreen(const Arg *arg);
 static void toggletag(const Arg *arg);
 static void toggleview(const Arg *arg);
 static void unfocus(Client *c, int setfocus);
@@ -780,9 +783,9 @@ drawbar(Monitor *m)
 		if (cur_mode != NULL) {
 			mode = ecalloc(1, strlen(cur_mode->symbol) + 4);
 			if ((sprintf(mode, "[%s]", cur_mode->symbol)) > 0) {
-				mw = TEXTW(mode) - 2;
+				mw = TEXTW(mode);
 				drw_setscheme(drw, scheme[SchemeSel]);
-				drw_text(drw, m->ww - tw - mw, 0, mw, bh, 0, mode, 0);
+				drw_text(drw, m->ww - tw - mw, 0, mw, bh, lrpad/2, mode, 0);
 			}
 			free(mode);
 		}
@@ -1082,6 +1085,9 @@ grabkeys(void)
 						XGrabKey(dpy, code, key->mod | modifiers[k],
 							root, True, GrabModeAsync, GrabModeAsync);
 		}
+		for (i=0; i<LENGTH(modifiers); i++)
+			XGrabKey(dpy, XKeysymToKeycode(dpy, XK_Escape), MODKEY | modifiers[i],
+				root, True, GrabModeAsync, GrabModeAsync);
 	}
 }
 
@@ -1123,8 +1129,10 @@ keypress(XEvent *e)
 				drawbar(selmon);
 				return;
 			}
-	} else if (keysym == cur_mode->keysym
-		&& CLEANMASK(cur_mode->mod) == CLEANMASK(ev->state)) {
+	} else if ((cur_mode->unique == 0 && keysym == cur_mode->keysym
+		&& CLEANMASK(cur_mode->mod) == CLEANMASK(ev->state)) ||
+		(cur_mode->unique == 1 && keysym == XK_Escape
+		&& CLEANMASK(MODKEY) == CLEANMASK(ev->state))) {
 		cur_mode = NULL;
 		drawbar(selmon);
 		return;
@@ -1136,12 +1144,11 @@ keypress(XEvent *e)
 		if (keysym == k[i].keysym
 		&& CLEANMASK(k[i].mod) == CLEANMASK(ev->state)
 		&& k[i].func) {
-			k[i].func(&(k[i].arg));
 			if (cur_mode && cur_mode->unique) {
 				cur_mode = NULL;
 				drawbar(selmon);
-				return;
 			}
+			k[i].func(&(k[i].arg));
 		}
 }
 
@@ -1765,7 +1772,7 @@ setmfact(const Arg *arg)
 
 	if (!arg || !selmon->lt[selmon->sellt]->arrange)
 		return;
-	f = arg->f < 1.0 ? arg->f + selmon->mfact : arg->f - 1.0;
+	f = arg->f < 1.0 ? arg->f + selmon->mfact : mfact;
 	if (f < 0.05 || f > 0.95)
 		return;
 	selmon->mfact = f;
@@ -1979,6 +1986,39 @@ spawn(const Arg *arg)
 }
 
 void
+spawndmenu(const Arg *arg)
+{
+}
+
+void
+spawnlocal(const Arg *arg)
+{
+	char *home, *path;
+	const char *tgt;
+
+	tgt = (arg && arg->v) ? arg->v : autostart;
+	if ((home = getenv("HOME")) == NULL)
+		return;
+	path = ecalloc(1, strlen(home) + strlen(tgt) + 2);
+	if (sprintf(path, "%s/%s", home, tgt) <= 0) {
+		free(path);
+		return;
+	}
+	int ret = fork();
+	if (ret == 0) {
+		if (dpy)
+			close(ConnectionNumber(dpy));
+		setsid();
+		char* args[] = {path, NULL};
+		execvp(path, args);
+		free(path);
+	} else if (ret < 0) {
+		free(path);
+	}
+}
+
+
+void
 tag(const Arg *arg)
 {
 	if (selmon->sel && arg->ui & TAGMASK) {
@@ -2045,6 +2085,13 @@ togglefloating(const Arg *arg)
 		resize(selmon->sel, selmon->sel->x, selmon->sel->y,
 			selmon->sel->w, selmon->sel->h, 0);
 	arrange(selmon);
+}
+
+void
+togglefullscreen(const Arg *arg)
+{
+	if (selmon->sel)
+		setfullscreen(selmon->sel, !selmon->sel->isfullscreen);
 }
 
 void

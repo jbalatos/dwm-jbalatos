@@ -11,8 +11,8 @@ picom --config $HOME/.local/dwm/picom.conf &
 killall nitrogen
 nitrogen --restore
 
-killall "bash $HOME/.local/dwm/statusbar &"
-bash $HOME/.local/dwm/statusbar &
+checkupdates &
+sleep 1s && bash $HOME/.local/dwm/statusbar &
 
 xset s off -dpms
 

@@ -18,16 +18,20 @@ while true; do
 	fi
 	BAT=$(cat /sys/class/power_supply/BAT0/capacity)
 
-	NETWORK=$(nmcli | grep -v disconnected | grep -c connected)
-	if [ "$NETWORK" == "1" ]; then
-		NETWORK="NET"
-	else
+	NETWORK=$(nmcli | grep wlp2s0 | grep -v disconnected | grep -c connected)
+	if [ "$NETWORK" == "0" ]; then
 		NETWORK="N/NET"
+	else
+		NETWORK="NET"
 	fi
 
 	LANG=$(xkblayout-state print "%s")
 
 	TIME=$(date +'%x %R')
-	xsetroot -name " $BAT_ICON $BAT% |$VOLUME| $LANG | $NETWORK | $TIME "
-	sleep 10s
+
+	UPDATES=$(checkupdates --nosync | wc -l)
+
+	xsetroot -name " $BAT_ICON $BAT% |$VOLUME| $LANG | $NETWORK | upd:$UPDATES | $TIME "
+	echo " $BAT_ICON $BAT% |$VOLUME| $LANG | $NETWORK | upd:$UPDATES | $TIME "
+	sleep 3s
 done

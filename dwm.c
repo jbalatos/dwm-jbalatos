@@ -1131,8 +1131,7 @@ keypress(XEvent *e)
 			}
 	} else if ((cur_mode->unique == 0 && keysym == cur_mode->keysym
 		&& CLEANMASK(cur_mode->mod) == CLEANMASK(ev->state)) ||
-		(cur_mode->unique == 1 && keysym == XK_Escape
-		&& CLEANMASK(MODKEY) == CLEANMASK(ev->state))) {
+		(keysym == XK_Escape && CLEANMASK(MODKEY) == CLEANMASK(ev->state))) {
 		cur_mode = NULL;
 		drawbar(selmon);
 		return;
